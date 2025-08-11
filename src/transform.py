@@ -78,13 +78,13 @@ def compute_category_growth(df: pd.DataFrame):
 
     df = df.copy()
     df["period"] = pd.to_datetime(df["date"]).dt.to_period("M").dt.to_timestamp()
-    df["quarter"] = df["period"].dt.to_period("Q").dt.to_timestamp()
 
     monthly = (
         df.groupby(["period", "vehicle_category"], as_index=False)["registrations"]
         .sum()
         .sort_values(["vehicle_category", "period"])
     )
+    monthly["quarter"] = monthly["period"].dt.to_period("Q").dt.to_timestamp()
     monthly["prev_year_regs"] = monthly.groupby("vehicle_category")["registrations"].shift(12)
     monthly["yoy_pct"] = (
         (monthly["registrations"] - monthly["prev_year_regs"]) / monthly["prev_year_regs"] * 100
