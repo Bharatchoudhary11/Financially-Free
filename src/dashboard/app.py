@@ -111,6 +111,18 @@ if not cat_latest.empty:
         .fillna("N/A")
         .round(2)
     )
+    # Visualise YoY change per category for quick comparison
+    bar = (
+        alt.Chart(cat_latest)
+        .mark_bar()
+        .encode(
+            x=alt.X("vehicle_category:N", title="Category"),
+            y=alt.Y("yoy_pct:Q", title="YoY %"),
+            tooltip=["vehicle_category", alt.Tooltip("yoy_pct:Q", format=".2f")],
+        )
+        .properties(height=300)
+    )
+    st.altair_chart(bar, use_container_width=True)
 
 latest_q = cat_quarter["quarter"].max()
 cat_q_latest = cat_quarter[cat_quarter["quarter"] == latest_q]
@@ -121,6 +133,17 @@ if not cat_q_latest.empty:
         .fillna("N/A")
         .round(2)
     )
+    qbar = (
+        alt.Chart(cat_q_latest)
+        .mark_bar()
+        .encode(
+            x=alt.X("vehicle_category:N", title="Category"),
+            y=alt.Y("qoq_pct:Q", title="QoQ %"),
+            tooltip=["vehicle_category", alt.Tooltip("qoq_pct:Q", format=".2f")],
+        )
+        .properties(height=300)
+    )
+    st.altair_chart(qbar, use_container_width=True)
 
 st.markdown("---")
 
@@ -153,13 +176,61 @@ if not cat_ts.empty:
 st.subheader(f"Top manufacturers — YoY (%) — latest month {latest_period.strftime('%Y-%m')}")
 lm = monthly[monthly['period'] == latest_period].copy().sort_values('yoy_pct', ascending=False)
 if not lm.empty:
-    st.dataframe(lm[['maker','vehicle_category','registrations','registrations_prev_year','yoy_pct']].fillna("N/A").round(2))
+    st.dataframe(
+        lm[
+            [
+                "maker",
+                "vehicle_category",
+                "registrations",
+                "registrations_prev_year",
+                "yoy_pct",
+            ]
+        ]
+        .fillna("N/A")
+        .round(2)
+    )
+    mbar = (
+        alt.Chart(lm)
+        .mark_bar()
+        .encode(
+            x=alt.X("maker:N", title="Manufacturer"),
+            y=alt.Y("yoy_pct:Q", title="YoY %"),
+            color="vehicle_category:N",
+            tooltip=[
+                "maker",
+                "vehicle_category",
+                alt.Tooltip("yoy_pct:Q", format=".2f"),
+            ],
+        )
+        .properties(height=300)
+    )
+    st.altair_chart(mbar, use_container_width=True)
 
 # Top manufacturers — QoQ
 st.subheader("Top manufacturers — QoQ (%) — latest quarter")
 qq = quarterly[quarterly['quarter'] == latest_q].sort_values('qoq_pct', ascending=False)
 if not qq.empty:
-    st.dataframe(qq[['maker','vehicle_category','registrations','prev_q_regs','qoq_pct']].fillna("N/A").round(2))
+    st.dataframe(
+        qq[["maker", "vehicle_category", "registrations", "prev_q_regs", "qoq_pct"]]
+        .fillna("N/A")
+        .round(2)
+    )
+    mqbar = (
+        alt.Chart(qq)
+        .mark_bar()
+        .encode(
+            x=alt.X("maker:N", title="Manufacturer"),
+            y=alt.Y("qoq_pct:Q", title="QoQ %"),
+            color="vehicle_category:N",
+            tooltip=[
+                "maker",
+                "vehicle_category",
+                alt.Tooltip("qoq_pct:Q", format=".2f"),
+            ],
+        )
+        .properties(height=300)
+    )
+    st.altair_chart(mqbar, use_container_width=True)
 
 # Download button
 st.markdown("---")
