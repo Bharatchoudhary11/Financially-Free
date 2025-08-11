@@ -3,12 +3,12 @@ import pandas as pd
 import sqlite3
 import sys
 import os
-from datetime import datetime
 import altair as alt
 
 # --- Fix imports ---
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
-from src.data_processing import get_key_insight  # absolute import
+from src.data_processing import get_key_insight
+from src.transform import compute_yoy_qoq, compute_category_growth
 
 st.set_page_config(page_title="Vehicle Registrations — Investor Dashboard", layout="wide")
 
@@ -17,34 +17,23 @@ DB_PATH = "data/vahan.db"
 @st.cache_data
 def load_db(db_path=DB_PATH):
     conn = sqlite3.connect(db_path)
-    df = pd.read_sql("SELECT date, vehicle_category, maker, registrations FROM registrations", conn)
+    df = pd.read_sql(
+        "SELECT date, vehicle_category, maker, registrations FROM registrations",
+        conn,
+    )
     conn.close()
-    df['date'] = pd.to_datetime(df['date'], errors='coerce')
-    df = df.dropna(subset=['date'])
-    df['registrations'] = pd.to_numeric(df['registrations'], errors='coerce').fillna(0).astype(int)
-    df['vehicle_category'] = df['vehicle_category'].astype(str)
-    df['maker'] = df['maker'].astype(str)
-    df['period'] = df['date'].dt.to_period('M').dt.to_timestamp()
-    df['year'] = df['period'].dt.year
-    df['month'] = df['period'].dt.month
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+    df = df.dropna(subset=["date"])
+    df["registrations"] = (
+        pd.to_numeric(df["registrations"], errors="coerce").fillna(0).astype(int)
+    )
+    df["vehicle_category"] = df["vehicle_category"].astype(str)
+    df["maker"] = df["maker"].astype(str)
+    df["period"] = df["date"].dt.to_period("M").dt.to_timestamp()
     return df
 
-def compute_monthly_aggs(df):
-    monthly = df.groupby(['period','vehicle_category','maker'], as_index=False)['registrations'].sum()
-    monthly = monthly.sort_values(['maker','vehicle_category','period'])
-    monthly['registrations_prev_year'] = monthly.groupby(['maker','vehicle_category'])['registrations'].shift(12)
-    monthly['yoy_pct'] = (monthly['registrations'] - monthly['registrations_prev_year']) / monthly['registrations_prev_year'] * 100
-    monthly['quarter'] = monthly['period'].dt.to_period('Q').dt.to_timestamp()
-    q = monthly.groupby(['quarter','vehicle_category','maker'], as_index=False)['registrations'].sum().sort_values(['maker','vehicle_category','quarter'])
-    q['prev_q_regs'] = q.groupby(['maker','vehicle_category'])['registrations'].shift(1)
-    q['qoq_pct'] = (q['registrations'] - q['prev_q_regs']) / q['prev_q_regs'] * 100
-    return monthly, q
-
+# Load data
 df = load_db()
-
-# Debug print for initial data load
-st.write(f"Data loaded: {len(df)} rows")
-st.write(df[['date','period','vehicle_category','maker']].drop_duplicates().head())
 
 # Sidebar filters
 with st.sidebar:
@@ -83,42 +72,23 @@ with st.sidebar:
     selected_cats = st.multiselect("Vehicle category", vehicle_cats, default=vehicle_cats)
     selected_makers = st.multiselect("Manufacturers", makers_all, default=makers_all[:10])
 
-# Show selected filter info for debug
-st.write(f"Selected date range: {start_date} to {end_date}")
-st.write(f"Selected categories: {selected_cats}")
-st.write(f"Selected makers: {selected_makers}")
-
 mask = (df['period'] >= pd.to_datetime(start_date)) & (df['period'] <= pd.to_datetime(end_date))
 mask &= df['vehicle_category'].isin(selected_cats)
 mask &= df['maker'].isin(selected_makers)
 df_f = df[mask].copy()
 
-# Debug filtered data count
-st.write(f"Filtered data rows after applying filters: {len(df_f)}")
-st.write(df_f.head())
-
 if df_f.empty:
     st.warning("No data for the selected filters / date range.")
     st.stop()
 
-monthly, quarterly = compute_monthly_aggs(df_f)
-
-# Debug aggregated data
-st.write("Monthly aggregates sample:")
-st.write(monthly.head())
-st.write("Quarterly aggregates sample:")
-st.write(quarterly.head())
+monthly, quarterly = compute_yoy_qoq(df_f)
+cat_month, cat_quarter = compute_category_growth(df_f)
 
 # Dashboard header
 st.title("Vehicle Registrations — Investor Dashboard")
 
-latest_period = df_f['period'].max()
-latest_total = int(df_f[df_f['period'] == latest_period]['registrations'].sum())
-
-totals_latest = df_f[df_f['period'] == latest_period].groupby('vehicle_category', as_index=False)['registrations'].sum()
-totals_prev_year = df_f[df_f['period'] == (latest_period - pd.DateOffset(years=1))].groupby('vehicle_category', as_index=False)['registrations'].sum()
-tot = totals_latest.merge(totals_prev_year, on='vehicle_category', how='left', suffixes=('','_prev'))
-tot['yoy_pct'] = (tot['registrations'] - tot['registrations_prev']) / tot['registrations_prev'] * 100
+latest_period = df_f["period"].max()
+latest_total = int(df_f[df_f["period"] == latest_period]["registrations"].sum())
 
 c1, c2, c3 = st.columns([2,2,2])
 with c1:
@@ -132,6 +102,25 @@ with c3:
         st.metric("Total YoY (%)", f"{total_yoy} %")
     else:
         st.metric("Total YoY (%)", "N/A")
+
+cat_latest = cat_month[cat_month["period"] == latest_period]
+st.subheader(f"Category YoY (%) — latest month {latest_period.strftime('%Y-%m')}")
+if not cat_latest.empty:
+    st.dataframe(
+        cat_latest[["vehicle_category", "registrations", "prev_year_regs", "yoy_pct"]]
+        .fillna("N/A")
+        .round(2)
+    )
+
+latest_q = cat_quarter["quarter"].max()
+cat_q_latest = cat_quarter[cat_quarter["quarter"] == latest_q]
+st.subheader("Category QoQ (%) — latest quarter")
+if not cat_q_latest.empty:
+    st.dataframe(
+        cat_q_latest[["vehicle_category", "registrations", "prev_q_regs", "qoq_pct"]]
+        .fillna("N/A")
+        .round(2)
+    )
 
 st.markdown("---")
 
@@ -168,7 +157,6 @@ if not lm.empty:
 
 # Top manufacturers — QoQ
 st.subheader("Top manufacturers — QoQ (%) — latest quarter")
-latest_q = quarterly['quarter'].max()
 qq = quarterly[quarterly['quarter'] == latest_q].sort_values('qoq_pct', ascending=False)
 if not qq.empty:
     st.dataframe(qq[['maker','vehicle_category','registrations','prev_q_regs','qoq_pct']].fillna("N/A").round(2))
