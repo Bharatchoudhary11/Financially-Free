@@ -1,4 +1,7 @@
 import sqlite3
+from typing import Iterable, Tuple
+
+import pandas as pd
 
 DB_PATH = "data/vahan.db"
 
@@ -21,23 +24,55 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM registrations")
     count = cursor.fetchone()[0]
     if count == 0:
-        # Insert some dummy sample data
-        sample_data = [
-            ('2025-01-01', '2W', 'Honda', 1200),
-            ('2025-01-01', '4W', 'Maruti', 1500),
-            ('2025-02-01', '2W', 'Yamaha', 900),
-            ('2025-02-01', '4W', 'Hyundai', 1300),
-            ('2025-03-01', '2W', 'Honda', 1400),
-        ]
-        cursor.executemany("""
-            INSERT INTO registrations (date, vehicle_category, maker, registrations)
-            VALUES (?, ?, ?, ?)
-        """, sample_data)
-        print(f"Inserted {len(sample_data)} sample rows.")
+        try:
+            records = _load_vahan_records("data/vahan.csv")
+            cursor.executemany(
+                """
+                INSERT INTO registrations (date, vehicle_category, maker, registrations)
+                VALUES (?, ?, ?, ?)
+                """,
+                records,
+            )
+            print(f"Inserted {len(records)} rows from dataset.")
+        except Exception:
+            # Fallback to minimal sample data if dataset is missing
+            sample_data = [
+                ("2025-01-01", "2W", "Honda", 1200),
+                ("2025-01-01", "4W", "Maruti", 1500),
+                ("2025-02-01", "2W", "Yamaha", 900),
+                ("2025-02-01", "4W", "Hyundai", 1300),
+                ("2025-03-01", "2W", "Honda", 1400),
+            ]
+            cursor.executemany(
+                """
+                INSERT INTO registrations (date, vehicle_category, maker, registrations)
+                VALUES (?, ?, ?, ?)
+                """,
+                sample_data,
+            )
+            print(f"Inserted {len(sample_data)} sample rows.")
 
     conn.commit()
     conn.close()
     print("Database ready.")
+
+
+def _load_vahan_records(path: str) -> Iterable[Tuple[str, str, str, int]]:
+    """Return iterable of records parsed from the Vahan dataset.
+
+    The expected dataset contains columns: ``date``, ``vehicle_category``,
+    ``maker`` and ``registrations``. Any rows missing these fields are
+    dropped. This helper relies on :func:`pandas.read_excel` which may
+    require the ``openpyxl`` dependency. If reading fails the caller
+    should handle the exception.
+    """
+
+    df = pd.read_excel(path)
+    df = df.dropna(subset=["date", "vehicle_category", "maker", "registrations"])
+    df["date"] = pd.to_datetime(df["date"]).dt.strftime("%Y-%m-%d")
+    df["registrations"] = pd.to_numeric(df["registrations"], errors="coerce").fillna(0).astype(int)
+    return df[["date", "vehicle_category", "maker", "registrations"]].itertuples(index=False, name=None)
+
 
 if __name__ == "__main__":
     init_db()

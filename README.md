@@ -9,8 +9,10 @@ source .venv/bin/activate
 # install deps
 pip install -r requirements.txt
 
-# create DB from schema
-sqlite3 data/vahan.db < src/db/schema.sql
+# populate the SQLite database (reads data/vahan.csv if available)
+# place the Vahan Excel export at ``data/vahan.csv`` or the script will
+# fall back to sample data
+python src/ingest.py
 
 # run tests
 python -m pytest
