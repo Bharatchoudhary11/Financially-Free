@@ -14,6 +14,12 @@ pip install -r requirements.txt
 # fall back to sample data
 python src/ingest.py
 
+# features
+- Interactive Streamlit dashboard with date range, vehicle category and manufacturer filters
+- YoY and QoQ growth tables and bar charts for categories and manufacturers
+- Altair charts showing monthly trends and area breakdowns
+- Download button to export filtered data
+
 # run tests
 python -m pytest
 
