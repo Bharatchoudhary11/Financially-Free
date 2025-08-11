@@ -42,12 +42,29 @@ def compute_monthly_aggs(df):
 
 df = load_db()
 
+# Debug print for initial data load
+st.write(f"Data loaded: {len(df)} rows")
+st.write(df[['date','period','vehicle_category','maker']].drop_duplicates().head())
+
 # Sidebar filters
 with st.sidebar:
     st.header("Filters")
 
-    min_date = df['period'].min().date()
-    max_date = df['period'].max().date()
+    if df.empty:
+        st.error("No data found in the database.")
+        st.stop()
+
+    if df['period'].isnull().all():
+        st.error("Date data missing or invalid in the database.")
+        st.stop()
+
+    min_date = df['period'].min()
+    max_date = df['period'].max()
+
+    # Convert pandas timestamps to python dates
+    min_date = min_date.date() if pd.notnull(min_date) else None
+    max_date = max_date.date() if pd.notnull(max_date) else None
+
     date_range = st.date_input(
         "Date range (month granularity)",
         value=(min_date, max_date),
@@ -66,16 +83,31 @@ with st.sidebar:
     selected_cats = st.multiselect("Vehicle category", vehicle_cats, default=vehicle_cats)
     selected_makers = st.multiselect("Manufacturers", makers_all, default=makers_all[:10])
 
+# Show selected filter info for debug
+st.write(f"Selected date range: {start_date} to {end_date}")
+st.write(f"Selected categories: {selected_cats}")
+st.write(f"Selected makers: {selected_makers}")
+
 mask = (df['period'] >= pd.to_datetime(start_date)) & (df['period'] <= pd.to_datetime(end_date))
 mask &= df['vehicle_category'].isin(selected_cats)
 mask &= df['maker'].isin(selected_makers)
 df_f = df[mask].copy()
+
+# Debug filtered data count
+st.write(f"Filtered data rows after applying filters: {len(df_f)}")
+st.write(df_f.head())
 
 if df_f.empty:
     st.warning("No data for the selected filters / date range.")
     st.stop()
 
 monthly, quarterly = compute_monthly_aggs(df_f)
+
+# Debug aggregated data
+st.write("Monthly aggregates sample:")
+st.write(monthly.head())
+st.write("Quarterly aggregates sample:")
+st.write(quarterly.head())
 
 # Dashboard header
 st.title("Vehicle Registrations — Investor Dashboard")
