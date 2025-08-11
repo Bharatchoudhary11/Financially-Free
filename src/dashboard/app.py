@@ -1,8 +1,14 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import sys
+import os
 from datetime import datetime
 import altair as alt
+
+# --- Fix imports ---
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from src.data_processing import get_key_insight  # absolute import
 
 st.set_page_config(page_title="Vehicle Registrations — Investor Dashboard", layout="wide")
 
@@ -36,7 +42,7 @@ def compute_monthly_aggs(df):
 
 df = load_db()
 
-# Sidebar controls
+# Sidebar filters
 with st.sidebar:
     st.header("Filters")
 
@@ -49,7 +55,6 @@ with st.sidebar:
         max_value=max_date
     )
 
-    # Handle tuple or single date
     if isinstance(date_range, tuple):
         start_date, end_date = date_range
     else:
@@ -58,30 +63,8 @@ with st.sidebar:
     vehicle_cats = sorted(df['vehicle_category'].unique().tolist())
     makers_all = sorted(df['maker'].unique().tolist())
 
-    selected_cats = st.multiselect(
-        "Vehicle category",
-        vehicle_cats,
-        default=vehicle_cats,
-    )
-
-    selected_makers = st.multiselect(
-        "Manufacturers (multi-select)",
-        makers_all,
-        default=makers_all[:10],
-    )
-
-    # CSS to make long multi-selects scrollable
-    st.markdown(
-        """
-        <style>
-        section[data-testid="stSidebar"] .stMultiSelect {
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    selected_cats = st.multiselect("Vehicle category", vehicle_cats, default=vehicle_cats)
+    selected_makers = st.multiselect("Manufacturers", makers_all, default=makers_all[:10])
 
 mask = (df['period'] >= pd.to_datetime(start_date)) & (df['period'] <= pd.to_datetime(end_date))
 mask &= df['vehicle_category'].isin(selected_cats)
@@ -94,7 +77,9 @@ if df_f.empty:
 
 monthly, quarterly = compute_monthly_aggs(df_f)
 
+# Dashboard header
 st.title("Vehicle Registrations — Investor Dashboard")
+
 latest_period = df_f['period'].max()
 latest_total = int(df_f[df_f['period'] == latest_period]['registrations'].sum())
 
@@ -121,26 +106,19 @@ st.markdown("---")
 # Time series: overall trend
 st.subheader("Overall monthly registrations (trend)")
 ts = df_f.groupby('period', as_index=False)['registrations'].sum().sort_values('period')
-
-if ts.empty:
-    st.info("No data available for overall monthly registrations.")
-else:
+if not ts.empty:
     ts['period'] = pd.to_datetime(ts['period'])
     chart = alt.Chart(ts).mark_line(point=True).encode(
         x=alt.X('period:T', title='Month'),
         y=alt.Y('registrations:Q', title='Registrations'),
         tooltip=['period:T', 'registrations:Q']
-    ).properties(height=300, width=600)  # width must be a number
+    ).properties(height=300, width=600)
     st.altair_chart(chart, use_container_width=True)
 
-
-# Category breakdown (stacked area)
+# Category breakdown
 st.subheader("Category-wise monthly trend")
 cat_ts = df_f.groupby(['period', 'vehicle_category'], as_index=False)['registrations'].sum()
-
-if cat_ts.empty:
-    st.info("No data available for category-wise monthly trend.")
-else:
+if not cat_ts.empty:
     cat_ts['period'] = pd.to_datetime(cat_ts['period'])
     area = alt.Chart(cat_ts).mark_area().encode(
         x='period:T',
@@ -150,27 +128,24 @@ else:
     ).properties(height=320)
     st.altair_chart(area, use_container_width=True)
 
+# Top manufacturers — YoY
 st.subheader(f"Top manufacturers — YoY (%) — latest month {latest_period.strftime('%Y-%m')}")
-lm = monthly[monthly['period'] == latest_period].copy()
-lm = lm.sort_values('yoy_pct', ascending=False).reset_index(drop=True)
-if lm.empty:
-    st.write("No monthly manufacturer data for latest period.")
-else:
+lm = monthly[monthly['period'] == latest_period].copy().sort_values('yoy_pct', ascending=False)
+if not lm.empty:
     st.dataframe(lm[['maker','vehicle_category','registrations','registrations_prev_year','yoy_pct']].fillna("N/A").round(2))
 
+# Top manufacturers — QoQ
 st.subheader("Top manufacturers — QoQ (%) — latest quarter")
 latest_q = quarterly['quarter'].max()
-qq = quarterly[quarterly['quarter'] == latest_q].sort_values('qoq_pct', ascending=False).reset_index(drop=True)
-if qq.empty:
-    st.write("No quarterly manufacturer data for latest quarter.")
-else:
+qq = quarterly[quarterly['quarter'] == latest_q].sort_values('qoq_pct', ascending=False)
+if not qq.empty:
     st.dataframe(qq[['maker','vehicle_category','registrations','prev_q_regs','qoq_pct']].fillna("N/A").round(2))
 
+# Download button
 st.markdown("---")
 st.download_button("Download filtered data (CSV)", df_f.to_csv(index=False), file_name="vahan_filtered.csv")
 
-st.markdown("""
-**Notes / Next steps**
-- This app is DB-first and expects `data/vahan.db` to exist with `registrations` table.
-- To populate with live Vahan data we can add a scraper that finds the JSON/XHR endpoints or uses Playwright/Selenium.
-""")
+# Key Investment Insight section
+st.markdown("### 📊 Key Investment Insight")
+insight = get_key_insight(df_f)
+st.success(insight)
