@@ -28,10 +28,6 @@ def get_key_insight(df: pd.DataFrame) -> str:
     latest_total = df[df["period"] == latest_period]["registrations"].sum()
     prev_total = df[df["period"] == prev_year_period]["registrations"].sum()
 
-    yoy_growth = (
-        (latest_total - prev_total) / prev_total * 100 if prev_total else float("nan")
-    )
-
     top_category = (
         df[df["period"] == latest_period]
         .groupby(category_col)["registrations"]
@@ -39,8 +35,22 @@ def get_key_insight(df: pd.DataFrame) -> str:
         .idxmax()
     )
 
-    growth_str = f"{yoy_growth:.2f}%" if pd.notnull(yoy_growth) else "N/A"
-    return (
-        f"Year-over-year growth is {growth_str} with {top_category} leading the registrations."
-    )
+    if prev_total:
+        yoy_growth = (latest_total - prev_total) / prev_total * 100
+        growth_str = f"{yoy_growth:.2f}%"
+        metric = "Year-over-year"
+    else:
+        prev_month_period = latest_period - pd.DateOffset(months=1)
+        prev_month_total = (
+            df[df["period"] == prev_month_period]["registrations"].sum()
+        )
+        mom_growth = (
+            (latest_total - prev_month_total) / prev_month_total * 100
+            if prev_month_total
+            else float("nan")
+        )
+        growth_str = f"{mom_growth:.2f}%" if pd.notnull(mom_growth) else "N/A"
+        metric = "Month-over-month"
+
+    return f"{metric} growth is {growth_str} with {top_category} leading the registrations."
 
