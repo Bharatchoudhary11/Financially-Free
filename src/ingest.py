@@ -37,6 +37,16 @@ def init_db():
         except Exception:
             # Fallback to minimal sample data if dataset is missing
             sample_data = [
+                ("2024-01-01", "2W", "Honda", 1000),
+                ("2024-01-01", "4W", "Maruti", 1400),
+                ("2024-02-01", "2W", "Yamaha", 800),
+                ("2024-02-01", "4W", "Hyundai", 1200),
+                ("2024-03-01", "2W", "Honda", 1100),
+                ("2024-03-01", "4W", "Tata", 1000),
+                ("2024-04-01", "2W", "Suzuki", 900),
+                ("2024-04-01", "4W", "Maruti", 1500),
+                ("2024-05-01", "2W", "Honda", 1300),
+                ("2024-05-01", "4W", "Hyundai", 1100),
                 ("2025-01-01", "2W", "Honda", 1200),
                 ("2025-01-01", "4W", "Maruti", 1500),
                 ("2025-02-01", "2W", "Yamaha", 900),
