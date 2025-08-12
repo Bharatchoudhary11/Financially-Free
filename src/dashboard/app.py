@@ -112,17 +112,21 @@ if not cat_latest.empty:
         .round(2)
     )
     # Visualise YoY change per category for quick comparison
-    bar = (
-        alt.Chart(cat_latest)
-        .mark_bar()
-        .encode(
-            x=alt.X("vehicle_category:N", title="Category"),
-            y=alt.Y("yoy_pct:Q", title="YoY %"),
-            tooltip=["vehicle_category", alt.Tooltip("yoy_pct:Q", format=".2f")],
+    cat_yoy = cat_latest.dropna(subset=["yoy_pct"])
+    if not cat_yoy.empty:
+        bar = (
+            alt.Chart(cat_yoy)
+            .mark_bar()
+            .encode(
+                x=alt.X("vehicle_category:N", title="Category"),
+                y=alt.Y("yoy_pct:Q", title="YoY %"),
+                tooltip=["vehicle_category", alt.Tooltip("yoy_pct:Q", format=".2f")],
+            )
+            .properties(height=300)
         )
-        .properties(height=300)
-    )
-    st.altair_chart(bar, use_container_width=True)
+        st.altair_chart(bar, use_container_width=True)
+    else:
+        st.info("Not enough data for YoY comparison.")
 
 latest_q = cat_quarter["quarter"].max()
 cat_q_latest = cat_quarter[cat_quarter["quarter"] == latest_q]
@@ -189,22 +193,26 @@ if not lm.empty:
         .fillna("N/A")
         .round(2)
     )
-    mbar = (
-        alt.Chart(lm)
-        .mark_bar()
-        .encode(
-            x=alt.X("maker:N", title="Manufacturer"),
-            y=alt.Y("yoy_pct:Q", title="YoY %"),
-            color="vehicle_category:N",
-            tooltip=[
-                "maker",
-                "vehicle_category",
-                alt.Tooltip("yoy_pct:Q", format=".2f"),
-            ],
+    lm_yoy = lm.dropna(subset=["yoy_pct"])
+    if not lm_yoy.empty:
+        mbar = (
+            alt.Chart(lm_yoy)
+            .mark_bar()
+            .encode(
+                x=alt.X("maker:N", title="Manufacturer"),
+                y=alt.Y("yoy_pct:Q", title="YoY %"),
+                color="vehicle_category:N",
+                tooltip=[
+                    "maker",
+                    "vehicle_category",
+                    alt.Tooltip("yoy_pct:Q", format=".2f"),
+                ],
+            )
+            .properties(height=300)
         )
-        .properties(height=300)
-    )
-    st.altair_chart(mbar, use_container_width=True)
+        st.altair_chart(mbar, use_container_width=True)
+    else:
+        st.info("Not enough data for YoY comparison.")
 
 # Top manufacturers — QoQ
 st.subheader("Top manufacturers — QoQ (%) — latest quarter")
