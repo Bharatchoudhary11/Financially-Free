@@ -9,6 +9,7 @@ import altair as alt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 from src.data_processing import get_key_insight
 from src.transform import compute_yoy_qoq, compute_category_growth
+from src.ingest import init_db
 
 st.set_page_config(page_title="Vehicle Registrations — Investor Dashboard", layout="wide")
 
@@ -16,6 +17,8 @@ DB_PATH = "data/vahan.db"
 
 @st.cache_data
 def load_db(db_path=DB_PATH):
+    # Ensure database and table exist before querying
+    init_db()
     conn = sqlite3.connect(db_path)
     df = pd.read_sql(
         "SELECT date, vehicle_category, maker, registrations FROM registrations",
