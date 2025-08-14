@@ -54,3 +54,68 @@ def get_key_insight(df: pd.DataFrame) -> str:
 
     return f"{metric} growth is {growth_str} with {top_category} leading the registrations."
 
+
+def compute_yoy_comparison(df: pd.DataFrame) -> pd.DataFrame:
+    """Compute year-over-year comparison for each category.
+
+    The function looks at the most recent month in the dataframe and
+    compares registrations against the same month in the previous year.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing columns ``date``, ``registrations`` and either
+        ``vehicle_category`` or ``category``.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame with columns ``vehicle_category``, ``registrations``,
+        ``prev_year_regs`` and ``yoy_pct`` where ``yoy_pct`` is the
+        percentage change from the previous year. ``yoy_pct`` will be
+        ``NaN`` when data for the prior year is unavailable.
+    """
+
+    if "vehicle_category" in df.columns:
+        category_col = "vehicle_category"
+    elif "category" in df.columns:
+        category_col = "category"
+    else:
+        raise ValueError("No category column found in dataframe.")
+
+    if "date" not in df.columns or "registrations" not in df.columns:
+        raise ValueError("DataFrame must contain 'date' and 'registrations' columns.")
+
+    df = df.copy()
+    df["period"] = pd.to_datetime(df["date"]).dt.to_period("M").dt.to_timestamp()
+
+    latest_period = df["period"].max()
+    prev_year_period = latest_period - pd.DateOffset(years=1)
+
+    current = (
+        df[df["period"] == latest_period]
+        .groupby(category_col)["registrations"]
+        .sum()
+    )
+    previous = (
+        df[df["period"] == prev_year_period]
+        .groupby(category_col)["registrations"]
+        .sum()
+    )
+
+    result = (
+        pd.DataFrame({
+            "registrations": current,
+            "prev_year_regs": previous,
+        })
+        .fillna(0)
+    )
+
+    result["yoy_pct"] = (
+        (result["registrations"] - result["prev_year_regs"]) / result["prev_year_regs"] * 100
+    ).where(result["prev_year_regs"].ne(0))
+
+    result = result.reset_index().rename(columns={category_col: "vehicle_category"})
+
+    return result
+
