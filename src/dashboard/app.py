@@ -64,8 +64,10 @@ with st.sidebar:
         max_value=max_date
     )
 
-    if isinstance(date_range, tuple):
-        start_date, end_date = date_range
+    # st.date_input can return a single date or a list/tuple of dates
+    if isinstance(date_range, (list, tuple)):
+        start_date = date_range[0]
+        end_date = date_range[-1] if len(date_range) > 1 else max_date
     else:
         start_date, end_date = date_range, max_date
 
