@@ -1,5 +1,5 @@
 # clone (after I push to GitHub or I give you zip)
-git clone <repo_url>
+git clone https://github.com/Bharatchoudhary11/Financially-Free.git
 cd vehicle-dashboard
 
 # create venv
